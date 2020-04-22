@@ -517,6 +517,11 @@ osmosdr::freq_range_t source_impl::get_freq_range( size_t chan )
   return osmosdr::freq_range_t();
 }
 
+void source_impl::set_center_freq( double freq)
+{
+    set_center_freq(freq, 0);
+}
+
 double source_impl::set_center_freq( double freq, size_t chan )
 {
   size_t channel = 0;
@@ -966,4 +971,22 @@ void source_impl::set_time_unknown_pps(const osmosdr::time_spec_t &time_spec)
   {
     dev->set_time_unknown_pps( time_spec );
   }
+}
+
+void source_impl::setup_rpc()
+{
+#ifdef GR_CTRLPORT
+    add_rpc_variable(
+            rpcbasic_sptr(new rpcbasic_register_set<source_impl, double>(
+            this->alias(),
+            "frequency",
+            &source_impl::set_center_freq,
+            pmt::mp(0.0),
+            pmt::mp(6e9),
+            pmt::mp(100e6),
+            "",
+            "Frequency",
+            RPC_PRIVLVL_MIN,
+            DISPNULL)));
+#endif /* GR_CTRLPORT */
 }

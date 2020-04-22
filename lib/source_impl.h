@@ -90,8 +90,10 @@ public:
   void set_time_now(const ::osmosdr::time_spec_t &time_spec, size_t mboard = 0);
   void set_time_next_pps(const ::osmosdr::time_spec_t &time_spec);
   void set_time_unknown_pps(const ::osmosdr::time_spec_t &time_spec);
+  void setup_rpc();
 
 private:
+  void set_center_freq( double freq);
   std::vector< source_iface * > _devs;
 
   /* cache to prevent multiple device calls with the same value coming from grc */
