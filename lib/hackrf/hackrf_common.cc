@@ -63,58 +63,70 @@ hackrf_common::hackrf_common(const std::string &args) :
     _usage++;
   }
 
-  list = hackrf_device_list();
+  if (dict.count("fd") > 0 && dict["fd"].length() > 0 && dict.count("usbfs") > 0 && dict["usbfs"].length() > 0) {
+    int fd = boost::lexical_cast<int>( dict["fd"] );
+    std::string usbfsPath = dict["usbfs"];
 
-  if (target_serial.length() > 1) {
-    for (dev_index = 0; dev_index < list->devicecount; dev_index++) {
-      if (list->serial_numbers[dev_index]) {
-        std::string serial(list->serial_numbers[dev_index]);
-        if (serial.compare(serial.length() - target_serial.length(),
-                           target_serial.length(), target_serial) == 0) {
-          break;
-        }
-      }
-    }
+    ret = hackrf_android_open(&raw_dev, fd, usbfsPath.c_str());
+    HACKRF_THROW_ON_ERROR(ret, "Failed to open HackRF device")
+   _dev = hackrf_sptr(raw_dev, hackrf_common::close);
 
-    if (dev_index >= list->devicecount) {
-      hackrf_device_list_free(list);
-      throw std::runtime_error(
-            "No device found with serial number '" + target_serial + "'");
-    }
   } else {
-    try {
-      dev_index = std::stoi(target_serial);
-    } catch (std::exception &ex) {
-      hackrf_device_list_free(list);
-      throw std::runtime_error(
-            "Failed to use '" + target_serial + "' as HackRF device index number");
-    }
 
-    if (dev_index >= list->devicecount) {
-      hackrf_device_list_free(list);
-      throw std::runtime_error(
-            "Failed to use '" + target_serial + "' as HackRF device index: not enough devices");
-    }
-  }
+    list = hackrf_device_list();
 
-  if (list->serial_numbers[dev_index]) {
-    final_serial = list->serial_numbers[dev_index];
-  }
+    if (target_serial.length() > 1) {
+        for (dev_index = 0; dev_index < list->devicecount; dev_index++) {
+        if (list->serial_numbers[dev_index]) {
+            std::string serial(list->serial_numbers[dev_index]);
+            if (serial.compare(serial.length() - target_serial.length(),
+                            target_serial.length(), target_serial) == 0) {
+            break;
+            }
+        }
+        }
 
-  {
-    std::lock_guard<std::mutex> guard(_devs_mutex);
-
-    if (_devs.count(final_serial) > 0 && !_devs[final_serial].expired()) {
-      _dev = hackrf_sptr(_devs[final_serial]);
+        if (dev_index >= list->devicecount) {
+        hackrf_device_list_free(list);
+        throw std::runtime_error(
+                "No device found with serial number '" + target_serial + "'");
+        }
     } else {
-      ret = hackrf_device_list_open(list, dev_index, &raw_dev);
-      HACKRF_THROW_ON_ERROR(ret, "Failed to open HackRF device")
-      _dev = hackrf_sptr(raw_dev, hackrf_common::close);
-      _devs[final_serial] = static_cast<std::weak_ptr<struct hackrf_device>>(_dev);
-    }
-  }
+        try {
+        dev_index = std::stoi(target_serial);
+        } catch (std::exception &ex) {
+        hackrf_device_list_free(list);
+        throw std::runtime_error(
+                "Failed to use '" + target_serial + "' as HackRF device index number");
+        }
 
-  hackrf_device_list_free(list);
+        if (dev_index >= list->devicecount) {
+        hackrf_device_list_free(list);
+        throw std::runtime_error(
+                "Failed to use '" + target_serial + "' as HackRF device index: not enough devices");
+        }
+    }
+
+    if (list->serial_numbers[dev_index]) {
+        final_serial = list->serial_numbers[dev_index];
+    }
+
+    {
+        std::lock_guard<std::mutex> guard(_devs_mutex);
+
+        if (_devs.count(final_serial) > 0 && !_devs[final_serial].expired()) {
+        _dev = hackrf_sptr(_devs[final_serial]);
+        } else {
+        ret = hackrf_device_list_open(list, dev_index, &raw_dev);
+        HACKRF_THROW_ON_ERROR(ret, "Failed to open HackRF device")
+        _dev = hackrf_sptr(raw_dev, hackrf_common::close);
+        _devs[final_serial] = static_cast<std::weak_ptr<struct hackrf_device>>(_dev);
+        }
+    }
+
+    hackrf_device_list_free(list);
+
+  }
 
   uint8_t board_id;
   ret = hackrf_board_id_read(_dev.get(), &board_id);
