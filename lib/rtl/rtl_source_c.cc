@@ -101,43 +101,45 @@ rtl_source_c::rtl_source_c (const std::string &args)
 
   dict_t dict = params_to_dict(args);
 
-  if (dict.count("rtl")) {
-    std::string value = dict["rtl"];
+  if (!dict.count("fd")) {
+    if (dict.count("rtl")) {
+      std::string value = dict["rtl"];
 
-    if ( (index = rtlsdr_get_index_by_serial( value.c_str() )) >= 0 ) {
-      dev_index = index; /* use the resolved index value */
-    } else { /* use the numeric value of the argument */
-      if ( value.length() ) {
-        try {
-          dev_index = boost::lexical_cast< unsigned int >( value );
-        } catch ( std::exception &ex ) {
-          throw std::runtime_error(
-                "Failed to use '" + value + "' as index: " + ex.what());
+      if ( (index = rtlsdr_get_index_by_serial( value.c_str() )) >= 0 ) {
+        dev_index = index; /* use the resolved index value */
+      } else { /* use the numeric value of the argument */
+        if ( value.length() ) {
+          try {
+            dev_index = boost::lexical_cast< unsigned int >( value );
+          } catch ( std::exception &ex ) {
+            throw std::runtime_error(
+                  "Failed to use '" + value + "' as index: " + ex.what());
+          }
         }
       }
     }
+
+    if ( dev_index >= rtlsdr_get_device_count() )
+      throw std::runtime_error("Wrong rtlsdr device index given.");
+
+    std::cerr << "Using device #" << dev_index;
+
+    memset(manufact, 0, sizeof(manufact));
+    memset(product, 0, sizeof(product));
+    memset(serial, 0, sizeof(serial));
+    if ( !rtlsdr_get_device_usb_strings( dev_index, manufact, product, serial ) ) {
+      if (strlen(manufact))
+        std::cerr << " " << manufact;
+      if (strlen(product))
+        std::cerr << " " << product;
+      if (strlen(serial))
+        std::cerr << " SN: " << serial;
+    } else {
+      std::cerr << " " << rtlsdr_get_device_name(dev_index);
+    }
+
+    std::cerr << std::endl;
   }
-
-  if ( dev_index >= rtlsdr_get_device_count() )
-    throw std::runtime_error("Wrong rtlsdr device index given.");
-
-  std::cerr << "Using device #" << dev_index;
-
-  memset(manufact, 0, sizeof(manufact));
-  memset(product, 0, sizeof(product));
-  memset(serial, 0, sizeof(serial));
-  if ( !rtlsdr_get_device_usb_strings( dev_index, manufact, product, serial ) ) {
-    if (strlen(manufact))
-      std::cerr << " " << manufact;
-    if (strlen(product))
-      std::cerr << " " << product;
-    if (strlen(serial))
-      std::cerr << " SN: " << serial;
-  } else {
-    std::cerr << " " << rtlsdr_get_device_name(dev_index);
-  }
-
-  std::cerr << std::endl;
 
   if (dict.count("rtl_xtal"))
     rtl_freq = (unsigned int)boost::lexical_cast< double >( dict["rtl_xtal"] );
@@ -180,7 +182,14 @@ rtl_source_c::rtl_source_c (const std::string &args)
     _lut.push_back((i - 127.4f) / 128.0f);
 
   _dev = NULL;
-  ret = rtlsdr_open( &_dev, dev_index );
+
+  if (dict.count("rtl") && dict.count("fd") > 0 && dict["fd"].length() > 0 && dict.count("usbfs") > 0 && dict["usbfs"].length() > 0) {
+    int fd = boost::lexical_cast<int>( dict["fd"] );
+    std::string usbfsPath = dict["usbfs"];
+    ret = rtlsdr_open_android( &_dev, dev_index, fd, usbfsPath.c_str());
+  } else {
+    ret = rtlsdr_open( &_dev, dev_index );
+  }
   if (ret < 0)
     throw std::runtime_error("Failed to open rtlsdr device.");
 
